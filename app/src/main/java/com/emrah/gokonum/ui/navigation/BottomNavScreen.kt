@@ -1,12 +1,15 @@
 package com.emrah.gokonum.ui.navigation
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.emrah.gokonum.ui.screens.map.MapScreen
 import com.emrah.gokonum.ui.screens.records.RecordsScreen
 import com.emrah.gokonum.ui.screens.routes.PastRoutesScreen
@@ -20,7 +23,7 @@ fun BottomNavScreen() {
     Scaffold(
         bottomBar = {
             NavigationBar(
-                containerColor = Color(0xFF0A0A0A),
+                containerColor = Color(0xFF0A0A0A).copy(alpha = 0.95f),
                 contentColor = Color.White
             ) {
                 tabs.forEachIndexed { index, title ->
@@ -33,9 +36,9 @@ fun BottomNavScreen() {
                                     0 -> "🗺️"
                                     1 -> "📍"
                                     2 -> "🛣️"
-                                    else -> "⚙️"
+                                    else -> ""
                                 },
-                                fontSize = 20.sp
+                                fontSize = 22.sp
                             )
                         },
                         label = {
@@ -48,8 +51,8 @@ fun BottomNavScreen() {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFF00E5FF),
                             selectedTextColor = Color(0xFF00E5FF),
-                            unselectedIconColor = Color.White.copy(alpha = 0.6f),
-                            unselectedTextColor = Color.White.copy(alpha = 0.6f)
+                            unselectedIconColor = Color.Gray,
+                            unselectedTextColor = Color.Gray
                         )
                     )
                 }
