@@ -26,7 +26,7 @@ import java.util.Date
 fun MapScreen() {
     val context = LocalContext.current
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(37.0, 35.3), 10f) // Adana civarı
+        position = CameraPosition.fromLatLngZoom(LatLng(37.0, 35.3), 10f)
     }
 
     var showAddDialog by remember { mutableStateOf(false) }
@@ -35,11 +35,13 @@ fun MapScreen() {
     val database = remember { AppDatabase.getDatabase(context) }
     val locationDao = database.locationDao()
 
-    // Veritabanından kaydedilen konumları al (şimdilik basit liste)
     var savedLocations by remember { mutableStateOf<List<SavedLocation>>(emptyList()) }
 
+    // Veritabanını dinle ve haritada pinleri göster
     LaunchedEffect(Unit) {
-        // Gerçekte Flow ile dinleyeceğiz, şimdilik basit
+        locationDao.getAllLocations().collect { list ->
+            savedLocations = list
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -51,19 +53,23 @@ fun MapScreen() {
                 clickedLatLng = latLng
                 showAddDialog = true
             },
-            uiSettings = MapUiSettings(zoomControlsEnabled = true)
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = true,
+                compassEnabled = true
+            )
         ) {
-            // Kaydedilen konumları haritada göster (pin)
+            // Kaydedilen tüm konumları haritada göster
             savedLocations.forEach { loc ->
                 Marker(
                     state = MarkerState(position = LatLng(loc.latitude, loc.longitude)),
                     title = loc.name,
-                    snippet = loc.note
+                    snippet = if (loc.note.isNotEmpty()) loc.note else null,
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN)
                 )
             }
         }
 
-        // Üst Glass Bar
+        // Neon Üst Bar
         GlassCard(
             modifier = Modifier
                 .fillMaxWidth()
@@ -74,66 +80,69 @@ fun MapScreen() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "GoKonum",
-                    fontSize = 24.sp,
+                    fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF00E5FF)
+                )
+                Text(
+                    text = "Adana",
+                    fontSize = 16.sp,
+                    color = Color.White.copy(alpha = 0.7f)
                 )
             }
         }
 
-        // Neon Floating Button
+        // Neon FAB
         FloatingActionButton(
-            onClick = { /* İleride başka işlev */ },
+            onClick = {},
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(24.dp),
             containerColor = Color(0xFF00E5FF),
             contentColor = Color.Black
         ) {
-            Text(text = "+", fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text("+", fontSize = 36.sp, fontWeight = FontWeight.Bold)
         }
 
-        // Alt Glass Panel
+        // Alt Bilgi
         GlassCard(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(16.dp)
-                .padding(bottom = 80.dp)
+                .padding(bottom = 90.dp)
         ) {
             Text(
-                text = "Haritada uzun basın → Yeni konum ekleyin",
-                color = Color.White.copy(alpha = 0.8f),
+                text = "Haritada uzun basın → Konum ekleyin",
+                color = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.padding(16.dp)
             )
         }
 
-        // Pin Ekleme Dialog
+        // Yeni Konum Ekleme Dialog
         if (showAddDialog && clickedLatLng != null) {
-            var locationName by remember { mutableStateOf("") }
+            var name by remember { mutableStateOf("") }
             var note by remember { mutableStateOf("") }
 
             AlertDialog(
                 onDismissRequest = { showAddDialog = false },
                 title = { Text("Yeni Konum Ekle", color = Color(0xFF00E5FF)) },
                 text = {
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
-                            value = locationName,
-                            onValueChange = { locationName = it },
-                            label = { Text("Konum Adı") },
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text("Konum Adı *") },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = note,
                             onValueChange = { note = it },
-                            label = { Text("Not (opsiyonel)") },
+                            label = { Text("Not (isteğe bağlı)") },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -141,9 +150,9 @@ fun MapScreen() {
                 confirmButton = {
                     Button(
                         onClick = {
-                            if (locationName.isNotBlank()) {
-                                val newLocation = SavedLocation(
-                                    name = locationName,
+                            if (name.isNotBlank()) {
+                                val newLoc = SavedLocation(
+                                    name = name,
                                     latitude = clickedLatLng!!.latitude,
                                     longitude = clickedLatLng!!.longitude,
                                     note = note,
@@ -151,13 +160,11 @@ fun MapScreen() {
                                 )
 
                                 CoroutineScope(Dispatchers.IO).launch {
-                                    locationDao.insertLocation(newLocation)
+                                    locationDao.insertLocation(newLoc)
                                 }
 
-                                Toast.makeText(context, "$locationName kaydedildi!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "$name kaydedildi", Toast.LENGTH_SHORT).show()
                                 showAddDialog = false
-                                locationName = ""
-                                note = ""
                             }
                         }
                     ) {
