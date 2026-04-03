@@ -1,5 +1,6 @@
 package com.emrah.gokonum.ui.screens.map
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,31 +14,56 @@ import androidx.compose.ui.unit.sp
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import com.emrah.gokonum.data.database.AppDatabase
+import com.emrah.gokonum.data.model.SavedLocation
 import com.emrah.gokonum.ui.components.GlassCard
-import com.emrah.gokonum.ui.theme.GoKonumTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.util.Date
 
 @Composable
 fun MapScreen() {
     val context = LocalContext.current
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(37.0, 35.0), 8f) // Adana civarı başlangıç
+        position = CameraPosition.fromLatLngZoom(LatLng(37.0, 35.3), 10f) // Adana civarı
     }
 
-    var showBottomSheet by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var clickedLatLng by remember { mutableStateOf<LatLng?>(null) }
+
+    val database = remember { AppDatabase.getDatabase(context) }
+    val locationDao = database.locationDao()
+
+    // Veritabanından kaydedilen konumları al (şimdilik basit liste)
+    var savedLocations by remember { mutableStateOf<List<SavedLocation>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        // Gerçekte Flow ile dinleyeceğiz, şimdilik basit
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // === ANA HARİTA ===
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
-            uiSettings = MapUiSettings(
-                zoomControlsEnabled = true,
-                compassEnabled = true
-            )
-        )
+            onMapLongClick = { latLng ->
+                clickedLatLng = latLng
+                showAddDialog = true
+            },
+            uiSettings = MapUiSettings(zoomControlsEnabled = true)
+        ) {
+            // Kaydedilen konumları haritada göster (pin)
+            savedLocations.forEach { loc ->
+                Marker(
+                    state = MarkerState(position = LatLng(loc.latitude, loc.longitude)),
+                    title = loc.name,
+                    snippet = loc.note
+                )
+            }
+        }
 
-        // === ÜST BAR (Glass efekti) ===
+        // Üst Glass Bar
         GlassCard(
             modifier = Modifier
                 .fillMaxWidth()
@@ -57,31 +83,22 @@ fun MapScreen() {
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF00E5FF)
                 )
-                Text(
-                    text = "Adana",
-                    fontSize = 16.sp,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
             }
         }
 
-        // === NEON FLOATING ACTION BUTTON (Pin Ekle) ===
+        // Neon Floating Button
         FloatingActionButton(
-            onClick = { showBottomSheet = true },
+            onClick = { /* İleride başka işlev */ },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(24.dp),
             containerColor = Color(0xFF00E5FF),
             contentColor = Color.Black
         ) {
-            Text(
-                text = "+",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "+", fontSize = 32.sp, fontWeight = FontWeight.Bold)
         }
 
-        // === ALT BİLGİ PANELİ (Glass) ===
+        // Alt Glass Panel
         GlassCard(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -89,28 +106,67 @@ fun MapScreen() {
                 .padding(16.dp)
                 .padding(bottom = 80.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Konum eklemek için + butonuna bas",
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 14.sp
-                )
-            }
+            Text(
+                text = "Haritada uzun basın → Yeni konum ekleyin",
+                color = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.padding(16.dp)
+            )
         }
 
-        // Buraya sonra Bottom Sheet gelecek (pin ekleme popup)
-        if (showBottomSheet) {
-            // Basit placeholder - sonra geliştireceğiz
+        // Pin Ekleme Dialog
+        if (showAddDialog && clickedLatLng != null) {
+            var locationName by remember { mutableStateOf("") }
+            var note by remember { mutableStateOf("") }
+
             AlertDialog(
-                onDismissRequest = { showBottomSheet = false },
-                title = { Text("Yeni Konum Ekle") },
-                text = { Text("Bu özellik sonraki adımda eklenecek.") },
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Yeni Konum Ekle", color = Color(0xFF00E5FF)) },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = locationName,
+                            onValueChange = { locationName = it },
+                            label = { Text("Konum Adı") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = note,
+                            onValueChange = { note = it },
+                            label = { Text("Not (opsiyonel)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
                 confirmButton = {
-                    Button(onClick = { showBottomSheet = false }) {
-                        Text("Tamam")
+                    Button(
+                        onClick = {
+                            if (locationName.isNotBlank()) {
+                                val newLocation = SavedLocation(
+                                    name = locationName,
+                                    latitude = clickedLatLng!!.latitude,
+                                    longitude = clickedLatLng!!.longitude,
+                                    note = note,
+                                    date = Date()
+                                )
+
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    locationDao.insertLocation(newLocation)
+                                }
+
+                                Toast.makeText(context, "$locationName kaydedildi!", Toast.LENGTH_SHORT).show()
+                                showAddDialog = false
+                                locationName = ""
+                                note = ""
+                            }
+                        }
+                    ) {
+                        Text("Kaydet")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDialog = false }) {
+                        Text("İptal")
                     }
                 }
             )
