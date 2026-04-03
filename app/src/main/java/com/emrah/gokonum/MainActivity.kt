@@ -3,7 +3,7 @@ package com.emrah.gokonum
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import com.emrah.gokonum.ui.screens.map.MapScreen
+import com.emrah.gokonum.ui.navigation.BottomNavScreen
 import com.emrah.gokonum.ui.theme.GoKonumTheme
 
 class MainActivity : ComponentActivity() {
@@ -11,7 +11,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             GoKonumTheme {
-                MapScreen()
+                BottomNavScreen()
             }
         }
     }
